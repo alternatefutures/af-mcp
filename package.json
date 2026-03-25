@@ -1,0 +1,29 @@
+{
+  "name": "@alternatefutures/mcp-cloud",
+  "version": "0.1.0",
+  "description": "MCP server for AlternateFutures — compute, deployment, auth, and billing tools",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "af-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc && npx @modelcontextprotocol/inspector node dist/index.js",
+    "dev:watch": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "author": "Alternate Futures",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "typescript": "^5.8.2"
+  }
+}
