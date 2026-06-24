@@ -177,12 +177,12 @@ export const getTemplateTool = {
 export const deployTemplateTool = {
   name: 'deploy_template',
   description:
-    'Deploy a template to Akash or Phala. Specify provider "akash" (default) or "phala" for TEE.',
+    'Deploy a template to Akash, Phala, or Spheron. Specify provider "akash" (default), "phala" for TEE, or "spheron" for VM.',
   parameters: {
     templateId: z.string().describe('Template ID'),
     projectId: z.string().describe('Project ID to deploy into'),
     provider: z
-      .enum(['akash', 'phala'])
+      .enum(['akash', 'phala', 'spheron'])
       .default('akash')
       .describe('Compute provider'),
     name: z.string().optional().describe('Service name override'),
@@ -194,7 +194,7 @@ export const deployTemplateTool = {
   schema: z.object({
     templateId: z.string(),
     projectId: z.string(),
-    provider: z.enum(['akash', 'phala']).default('akash'),
+    provider: z.enum(['akash', 'phala', 'spheron']).default('akash'),
     name: z.string().optional(),
     envOverrides: z
       .array(z.object({ key: z.string(), value: z.string() }))
@@ -203,7 +203,7 @@ export const deployTemplateTool = {
   async handler(args: {
     templateId: string;
     projectId: string;
-    provider: 'akash' | 'phala';
+    provider: 'akash' | 'phala' | 'spheron';
     name?: string;
     envOverrides?: Array<{ key: string; value: string }>;
   }) {
@@ -225,6 +225,19 @@ export const deployTemplateTool = {
       );
       const d = data.deployFromTemplateToPhala;
       return { content: [{ type: 'text' as const, text: `Phala deployment started.\nDeployment ID: ${d.id}\nService ID: ${d.serviceId}\nStatus: ${d.status}` }] };
+    }
+
+    if (args.provider === 'spheron') {
+      const data = await graphql<{
+        deployFromTemplateToSpheron: { id: string; status: string; serviceId: string };
+      }>(
+        `mutation ($input: DeployFromTemplateInput!) {
+          deployFromTemplateToSpheron(input: $input) { id status serviceId }
+        }`,
+        { input },
+      );
+      const d = data.deployFromTemplateToSpheron;
+      return { content: [{ type: 'text' as const, text: `Spheron deployment started.\nDeployment ID: ${d.id}\nService ID: ${d.serviceId}\nStatus: ${d.status}` }] };
     }
 
     const data = await graphql<{
@@ -256,7 +269,7 @@ export const deployCompositeTemplateTool = {
       .default('fullstack')
       .describe('Deployment mode'),
     provider: z
-      .enum(['akash', 'phala'])
+      .enum(['akash', 'phala', 'spheron'])
       .optional()
       .describe('Provider for fullstack mode'),
     name: z.string().optional().describe('Service name override'),
@@ -265,14 +278,14 @@ export const deployCompositeTemplateTool = {
     templateId: z.string(),
     projectId: z.string(),
     mode: z.enum(['fullstack', 'custom']).default('fullstack'),
-    provider: z.enum(['akash', 'phala']).optional(),
+    provider: z.enum(['akash', 'phala', 'spheron']).optional(),
     name: z.string().optional(),
   }),
   async handler(args: {
     templateId: string;
     projectId: string;
     mode: 'fullstack' | 'custom';
-    provider?: 'akash' | 'phala';
+    provider?: 'akash' | 'phala' | 'spheron';
     name?: string;
   }) {
     const input: Record<string, unknown> = {
@@ -355,18 +368,18 @@ export const listDeploymentsTool = {
 export const getDeploymentStatusTool = {
   name: 'get_deployment_status',
   description:
-    'Get detailed status of a specific Akash or Phala deployment, including cost breakdown.',
+    'Get detailed status of a specific Akash, Phala, or Spheron deployment, including cost breakdown.',
   parameters: {
     deploymentId: z.string().describe('Deployment ID'),
     provider: z
-      .enum(['akash', 'phala'])
+      .enum(['akash', 'phala', 'spheron'])
       .describe('Which provider this deployment is on'),
   } as const,
   schema: z.object({
     deploymentId: z.string(),
-    provider: z.enum(['akash', 'phala']),
+    provider: z.enum(['akash', 'phala', 'spheron']),
   }),
-  async handler(args: { deploymentId: string; provider: 'akash' | 'phala' }) {
+  async handler(args: { deploymentId: string; provider: 'akash' | 'phala' | 'spheron' }) {
     if (args.provider === 'akash') {
       const data = await graphql<{
         akashDeployment: {
@@ -409,13 +422,55 @@ export const getDeploymentStatusTool = {
       return { content: [{ type: 'text' as const, text: parts.join('\n') }] };
     }
 
+    if (args.provider === 'phala') {
+      const data = await graphql<{
+        phalaDeployment: {
+          id: string;
+          status: string;
+          appId: string;
+          appUrl: string;
+          cvmSize: string;
+          costPerHour: number;
+          costPerDay: number;
+          costPerMonth: number;
+          errorMessage: string | null;
+          service: { name: string; slug: string } | null;
+        } | null;
+      }>(
+        `query ($id: ID!) {
+          phalaDeployment(id: $id) {
+            id status appId appUrl cvmSize costPerHour costPerDay costPerMonth
+            errorMessage
+            service { name slug }
+          }
+        }`,
+        { id: args.deploymentId },
+      );
+
+      const d = data.phalaDeployment;
+      if (!d) return { content: [{ type: 'text' as const, text: `Phala deployment ${args.deploymentId} not found.` }] };
+
+      const parts = [
+        `Phala Deployment: ${d.id}`,
+        `Service: ${d.service?.name ?? 'unknown'} (slug: ${d.service?.slug ?? 'n/a'})`,
+        `Status: ${d.status}`,
+        `CVM Size: ${d.cvmSize}`,
+        `App URL: ${d.appUrl || 'n/a'}`,
+        `Cost: $${d.costPerHour?.toFixed(4)}/hr | $${d.costPerDay?.toFixed(2)}/day | $${d.costPerMonth?.toFixed(2)}/mo`,
+      ];
+      if (d.errorMessage) parts.push(`Error: ${d.errorMessage}`);
+
+      return { content: [{ type: 'text' as const, text: parts.join('\n') }] };
+    }
+
     const data = await graphql<{
-      phalaDeployment: {
+      spheronDeployment: {
         id: string;
         status: string;
-        appId: string;
-        appUrl: string;
-        cvmSize: string;
+        ipAddress: string | null;
+        sshPort: number | null;
+        instanceType: string | null;
+        gpuType: string | null;
         costPerHour: number;
         costPerDay: number;
         costPerMonth: number;
@@ -424,24 +479,24 @@ export const getDeploymentStatusTool = {
       } | null;
     }>(
       `query ($id: ID!) {
-        phalaDeployment(id: $id) {
-          id status appId appUrl cvmSize costPerHour costPerDay costPerMonth
-          errorMessage
+        spheronDeployment(id: $id) {
+          id status ipAddress sshPort instanceType gpuType
+          costPerHour costPerDay costPerMonth errorMessage
           service { name slug }
         }
       }`,
       { id: args.deploymentId },
     );
 
-    const d = data.phalaDeployment;
-    if (!d) return { content: [{ type: 'text' as const, text: `Phala deployment ${args.deploymentId} not found.` }] };
+    const d = data.spheronDeployment;
+    if (!d) return { content: [{ type: 'text' as const, text: `Spheron deployment ${args.deploymentId} not found.` }] };
 
     const parts = [
-      `Phala Deployment: ${d.id}`,
+      `Spheron Deployment: ${d.id}`,
       `Service: ${d.service?.name ?? 'unknown'} (slug: ${d.service?.slug ?? 'n/a'})`,
       `Status: ${d.status}`,
-      `CVM Size: ${d.cvmSize}`,
-      `App URL: ${d.appUrl || 'n/a'}`,
+      `Instance: ${d.instanceType ?? 'n/a'}${d.gpuType ? ` (${d.gpuType})` : ''}`,
+      `Address: ${d.ipAddress ? `${d.ipAddress}${d.sshPort ? ` (ssh ${d.sshPort})` : ''}` : 'n/a'}`,
       `Cost: $${d.costPerHour?.toFixed(4)}/hr | $${d.costPerDay?.toFixed(2)}/day | $${d.costPerMonth?.toFixed(2)}/mo`,
     ];
     if (d.errorMessage) parts.push(`Error: ${d.errorMessage}`);
@@ -457,18 +512,18 @@ export const getDeploymentStatusTool = {
 export const stopDeploymentTool = {
   name: 'stop_deployment',
   description:
-    'Stop/close a deployment. Akash deployments are closed; Phala deployments are stopped.',
+    'Stop/close a deployment. Akash and Spheron are deleted; Phala is stopped (resumable).',
   parameters: {
     deploymentId: z.string().describe('Deployment ID'),
     provider: z
-      .enum(['akash', 'phala'])
+      .enum(['akash', 'phala', 'spheron'])
       .describe('Which provider this deployment is on'),
   } as const,
   schema: z.object({
     deploymentId: z.string(),
-    provider: z.enum(['akash', 'phala']),
+    provider: z.enum(['akash', 'phala', 'spheron']),
   }),
-  async handler(args: { deploymentId: string; provider: 'akash' | 'phala' }) {
+  async handler(args: { deploymentId: string; provider: 'akash' | 'phala' | 'spheron' }) {
     if (args.provider === 'akash') {
       const data = await graphql<{
         closeAkashDeployment: { id: string; status: string };
@@ -481,15 +536,27 @@ export const stopDeploymentTool = {
       return { content: [{ type: 'text' as const, text: `Akash deployment closed. Status: ${data.closeAkashDeployment.status}` }] };
     }
 
+    if (args.provider === 'phala') {
+      const data = await graphql<{
+        stopPhalaDeployment: { id: string; status: string };
+      }>(
+        `mutation ($id: ID!) {
+          stopPhalaDeployment(id: $id) { id status }
+        }`,
+        { id: args.deploymentId },
+      );
+      return { content: [{ type: 'text' as const, text: `Phala deployment stopped. Status: ${data.stopPhalaDeployment.status}` }] };
+    }
+
     const data = await graphql<{
-      stopPhalaDeployment: { id: string; status: string };
+      deleteSpheronDeployment: { id: string; status: string };
     }>(
       `mutation ($id: ID!) {
-        stopPhalaDeployment(id: $id) { id status }
+        deleteSpheronDeployment(id: $id) { id status }
       }`,
       { id: args.deploymentId },
     );
-    return { content: [{ type: 'text' as const, text: `Phala deployment stopped. Status: ${data.stopPhalaDeployment.status}` }] };
+    return { content: [{ type: 'text' as const, text: `Spheron deployment deleted. Status: ${data.deleteSpheronDeployment.status}` }] };
   },
 };
 

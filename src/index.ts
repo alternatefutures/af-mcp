@@ -28,6 +28,8 @@ import {
   listAiModelsTool,
 } from './tools/auth.js';
 
+import { chatSendTool, chatReadTool } from './tools/chat.js';
+
 const server = new McpServer({
   name: 'alternatefutures-cloud',
   version: '0.1.0',
@@ -61,6 +63,13 @@ server.tool(getSubscriptionStatusTool.name, getSubscriptionStatusTool.descriptio
 server.tool(listPatsTool.name, listPatsTool.description, listPatsTool.schema.shape, async () => listPatsTool.handler());
 server.tool(createPatTool.name, createPatTool.description, createPatTool.schema.shape, async (args) => createPatTool.handler(args));
 server.tool(listAiModelsTool.name, listAiModelsTool.description, listAiModelsTool.schema.shape, async () => listAiModelsTool.handler());
+
+// ---------------------------------------------------------------------------
+// Chat tools (end-to-end encrypted alt-chat, via the `af chat` CLI)
+// ---------------------------------------------------------------------------
+
+server.tool(chatSendTool.name, chatSendTool.description, chatSendTool.schema.shape, async (args) => chatSendTool.handler(args));
+server.tool(chatReadTool.name, chatReadTool.description, chatReadTool.schema.shape, async (args) => chatReadTool.handler(args));
 
 // ---------------------------------------------------------------------------
 // Start server
