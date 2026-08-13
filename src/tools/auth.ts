@@ -20,7 +20,7 @@ export const getUserInfoTool = {
           avatarUrl: string | null;
           createdAt: string;
         };
-      }>('/account'),
+      }>('/account/profile'),
       authFetch<{
         methods: Array<{ type: string; identifier: string }>;
       }>('/account/methods').catch(() => ({ methods: [] })),
