@@ -16,6 +16,9 @@ import {
   getDeploymentLogsTool,
   listDomainsTool,
   getDnsRecordsTool,
+  createDockerServiceTool,
+  deployServiceTool,
+  setServiceEnvVarTool,
 } from './tools/cloud.js';
 
 import {
@@ -51,6 +54,9 @@ server.tool(stopDeploymentTool.name, stopDeploymentTool.description, stopDeploym
 server.tool(getDeploymentLogsTool.name, getDeploymentLogsTool.description, getDeploymentLogsTool.schema.shape, async (args) => getDeploymentLogsTool.handler(args));
 server.tool(listDomainsTool.name, listDomainsTool.description, listDomainsTool.schema.shape, async (args) => listDomainsTool.handler(args));
 server.tool(getDnsRecordsTool.name, getDnsRecordsTool.description, getDnsRecordsTool.schema.shape, async (args) => getDnsRecordsTool.handler(args));
+server.tool(createDockerServiceTool.name, createDockerServiceTool.description, createDockerServiceTool.schema.shape, async (args) => createDockerServiceTool.handler(args));
+server.tool(deployServiceTool.name, deployServiceTool.description, deployServiceTool.schema.shape, async (args) => deployServiceTool.handler(args));
+server.tool(setServiceEnvVarTool.name, setServiceEnvVarTool.description, setServiceEnvVarTool.schema.shape, async (args) => setServiceEnvVarTool.handler(args));
 
 // ---------------------------------------------------------------------------
 // Auth tools (service-auth REST)

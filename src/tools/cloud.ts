@@ -675,3 +675,189 @@ export const getDnsRecordsTool = {
     return { content: [{ type: 'text' as const, text: `DNS records for ${args.domain}:\n${lines.join('\n')}` }] };
   },
 };
+
+// ---------------------------------------------------------------------------
+// create_docker_service
+// ---------------------------------------------------------------------------
+
+export const createDockerServiceTool = {
+  name: 'create_docker_service',
+  description:
+    'Create a docker service in a project from a container image. Optionally set env vars and deploy to Akash in one call. Equivalent to `acc services create --kind docker`.',
+  parameters: {
+    projectId: z.string().describe('Project ID to create the service in'),
+    name: z.string().describe('Service name (unique within the project)'),
+    image: z.string().describe('Container image, e.g. ghcr.io/org/app:1.2.3'),
+    port: z.number().optional().describe('Container port to expose'),
+    healthProbePath: z
+      .string()
+      .optional()
+      .describe('HTTP path for the health probe, e.g. /healthz'),
+    spendMode: z
+      .enum(['payg', 'budget', 'stop'])
+      .optional()
+      .describe('Spend control mode'),
+    envVars: z
+      .array(z.object({ key: z.string(), value: z.string() }))
+      .optional()
+      .describe('Environment variables, applied via setServiceEnvVar'),
+    deploy: z
+      .boolean()
+      .default(false)
+      .describe('Deploy to Akash immediately after creation'),
+    region: z
+      .enum(['us-east', 'us-west', 'eu', 'asia'])
+      .optional()
+      .describe('Curated region for the deployment (only used when deploy=true)'),
+  } as const,
+  schema: z.object({
+    projectId: z.string(),
+    name: z.string(),
+    image: z.string(),
+    port: z.number().optional(),
+    healthProbePath: z.string().optional(),
+    spendMode: z.enum(['payg', 'budget', 'stop']).optional(),
+    envVars: z
+      .array(z.object({ key: z.string(), value: z.string() }))
+      .optional(),
+    deploy: z.boolean().default(false),
+    region: z.enum(['us-east', 'us-west', 'eu', 'asia']).optional(),
+  }),
+  async handler(args: {
+    projectId: string;
+    name: string;
+    image: string;
+    port?: number;
+    healthProbePath?: string;
+    spendMode?: 'payg' | 'budget' | 'stop';
+    envVars?: Array<{ key: string; value: string }>;
+    deploy: boolean;
+    region?: 'us-east' | 'us-west' | 'eu' | 'asia';
+  }) {
+    const input: Record<string, unknown> = {
+      name: args.name,
+      projectId: args.projectId,
+      dockerImage: args.image,
+    };
+    if (args.port !== undefined) input.containerPort = args.port;
+    if (args.healthProbePath) input.healthProbePath = args.healthProbePath;
+    if (args.spendMode) input.spendMode = args.spendMode;
+
+    const created = await graphql<{
+      createService: { id: string; name: string };
+    }>(
+      `mutation ($input: CreateServiceInput!) {
+        createService(input: $input) { id name }
+      }`,
+      { input },
+    );
+    const svc = created.createService;
+
+    const envApplied: string[] = [];
+    for (const e of args.envVars ?? []) {
+      await graphql<{ setServiceEnvVar: { key: string } }>(
+        `mutation ($serviceId: ID!, $key: String!, $value: String!) {
+          setServiceEnvVar(serviceId: $serviceId, key: $key, value: $value) { key }
+        }`,
+        { serviceId: svc.id, key: e.key, value: e.value },
+      );
+      envApplied.push(e.key);
+    }
+
+    const lines = [
+      `Service created.`,
+      `Service ID: ${svc.id}`,
+      `Name: ${svc.name}`,
+    ];
+    if (envApplied.length) lines.push(`Env vars set: ${envApplied.join(', ')}`);
+
+    if (args.deploy) {
+      const deployInput: Record<string, unknown> = { serviceId: svc.id };
+      if (args.region) deployInput.region = args.region;
+      const deployed = await graphql<{
+        deployToAkash: { id: string; status: string };
+      }>(
+        `mutation ($input: DeployToAkashInput!) {
+          deployToAkash(input: $input) { id status }
+        }`,
+        { input: deployInput },
+      );
+      const d = deployed.deployToAkash;
+      lines.push(`Akash deployment started.\nDeployment ID: ${d.id}\nStatus: ${d.status}`);
+    }
+
+    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// deploy_service
+// ---------------------------------------------------------------------------
+
+export const deployServiceTool = {
+  name: 'deploy_service',
+  description:
+    'Deploy an existing service to Akash. Pair with create_docker_service when deploying later, or to redeploy after env/config changes.',
+  parameters: {
+    serviceId: z.string().describe('Service ID to deploy'),
+    region: z
+      .enum(['us-east', 'us-west', 'eu', 'asia'])
+      .optional()
+      .describe('Curated region to pin the deployment to'),
+  } as const,
+  schema: z.object({
+    serviceId: z.string(),
+    region: z.enum(['us-east', 'us-west', 'eu', 'asia']).optional(),
+  }),
+  async handler(args: { serviceId: string; region?: string }) {
+    const input: Record<string, unknown> = { serviceId: args.serviceId };
+    if (args.region) input.region = args.region;
+
+    const data = await graphql<{
+      deployToAkash: { id: string; status: string };
+    }>(
+      `mutation ($input: DeployToAkashInput!) {
+        deployToAkash(input: $input) { id status }
+      }`,
+      { input },
+    );
+    const d = data.deployToAkash;
+    return { content: [{ type: 'text' as const, text: `Akash deployment started.\nDeployment ID: ${d.id}\nStatus: ${d.status}` }] };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// set_service_env_var
+// ---------------------------------------------------------------------------
+
+export const setServiceEnvVarTool = {
+  name: 'set_service_env_var',
+  description:
+    'Set or update a single environment variable on a service. Redeploy with deploy_service for the change to take effect.',
+  parameters: {
+    serviceId: z.string().describe('Service ID'),
+    key: z.string().describe('Environment variable name'),
+    value: z.string().describe('Environment variable value'),
+  } as const,
+  schema: z.object({
+    serviceId: z.string(),
+    key: z.string(),
+    value: z.string(),
+  }),
+  async handler(args: { serviceId: string; key: string; value: string }) {
+    await graphql<{ setServiceEnvVar: { key: string } }>(
+      `mutation ($serviceId: ID!, $key: String!, $value: String!) {
+        setServiceEnvVar(serviceId: $serviceId, key: $key, value: $value) { key }
+      }`,
+      { serviceId: args.serviceId, key: args.key, value: args.value },
+    );
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Env var ${args.key} set on service ${args.serviceId}. Redeploy to apply.`,
+        },
+      ],
+    };
+  },
+};
