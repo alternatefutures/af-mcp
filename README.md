@@ -71,10 +71,11 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `list_services` | List services in a project with deployment status |
 | `list_templates` | List available deployment templates |
 | `get_template` | Get template details (resources, env vars, ports) |
-| `deploy_template` | Deploy a template to Akash or Phala TEE |
-| `list_deployments` | List all deployments across providers |
-| `get_deployment_status` | Get deployment status and cost breakdown |
-| `stop_deployment` | Stop/close an Akash or Phala deployment |
+| `deploy_template` | Deploy a template (`provider`: `akash`, `phala`, `spheron`, or `external:<handle>` to pin it to a listed host; optional `offerId`) |
+| `list_hosts` | List the listed hosts a deploy can be pinned to (handle, capabilities, priced offers; filters `gpu`, `region`) |
+| `list_deployments` | List all deployments across providers (kind `Listed host` for pinned ones) |
+| `get_deployment_status` | Get deployment status and cost breakdown (`provider` includes `external`) |
+| `stop_deployment` | Stop/close a deployment (`provider` includes `external`; Phala is stopped, the rest deleted) |
 | `get_deployment_logs` | Fetch container logs from a service |
 | `list_domains` | List domains for the organization |
 | `get_dns_records` | List DNS records for a domain zone |

@@ -10,6 +10,7 @@ import {
   getTemplateTool,
   deployTemplateTool,
   deployCompositeTemplateTool,
+  listHostsTool,
   listDeploymentsTool,
   getDeploymentStatusTool,
   stopDeploymentTool,
@@ -45,6 +46,7 @@ server.tool(listTemplatesTool.name, listTemplatesTool.description, listTemplates
 server.tool(getTemplateTool.name, getTemplateTool.description, getTemplateTool.schema.shape, async (args) => getTemplateTool.handler(args));
 server.tool(deployTemplateTool.name, deployTemplateTool.description, deployTemplateTool.schema.shape, async (args) => deployTemplateTool.handler(args));
 server.tool(deployCompositeTemplateTool.name, deployCompositeTemplateTool.description, deployCompositeTemplateTool.schema.shape, async (args) => deployCompositeTemplateTool.handler(args));
+server.tool(listHostsTool.name, listHostsTool.description, listHostsTool.schema.shape, async (args) => listHostsTool.handler(args));
 server.tool(listDeploymentsTool.name, listDeploymentsTool.description, listDeploymentsTool.schema.shape, async (args) => listDeploymentsTool.handler(args));
 server.tool(getDeploymentStatusTool.name, getDeploymentStatusTool.description, getDeploymentStatusTool.schema.shape, async (args) => getDeploymentStatusTool.handler(args));
 server.tool(stopDeploymentTool.name, stopDeploymentTool.description, stopDeploymentTool.schema.shape, async (args) => stopDeploymentTool.handler(args));
